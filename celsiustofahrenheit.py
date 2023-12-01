@@ -3,7 +3,8 @@ import numpy as np
 import logging
 logger = tf.get_logger()
 logger.setLevel(logging.ERROR)
-l0 = tf.keras.layers.Dense(units=1, input_shape=[1]) 
+
+l0 = tf.keras.layers.Dense(units=1, input_shape=[1]) # input shape is input quantity, units is number of neurons in the layer 
 model = tf.keras.Sequential([l0])
 
 celsius_q    = np.array([-40, -10,  0,  8, 15, 22,  38],  dtype=float)
@@ -12,14 +13,10 @@ fahrenheit_a = np.array([-40,  14, 32, 46, 59, 72, 100],  dtype=float)
 for i,c in enumerate(celsius_q):
   print("{} degrees Celsius = {} degrees Fahrenheit".format(c, fahrenheit_a[i]))
 
-model = tf.keras.Sequential([
-  tf.keras.layers.Dense(units=1, input_shape=[1])
-])
-
 model.compile(loss='mean_squared_error',
-              optimizer=tf.keras.optimizers.Adam(0.1))
+              optimizer=tf.keras.optimizers.Adam(0.1)) # 0.1 - 0.001, step values
 
-history = model.fit(celsius_q, fahrenheit_a, epochs=500, verbose=False)
+history = model.fit(celsius_q, fahrenheit_a, epochs=500, verbose=False) # epochs == iterations
 print("Finished training the model")
 
 import matplotlib.pyplot as plt
