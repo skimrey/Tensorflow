@@ -68,6 +68,9 @@ plt.show()
 model = tf.keras.Sequential([
     tf.keras.layers.Flatten(input_shape=(28, 28, 1)),
     tf.keras.layers.Dense(128, activation=tf.nn.relu),
+    tf.keras.layers.Dense(128, activation=tf.nn.relu),
+    tf.keras.layers.Dense(128, activation=tf.nn.relu),
+    tf.keras.layers.Dense(512, activation=tf.nn.relu),
     tf.keras.layers.Dense(10, activation=tf.nn.softmax)
 ])
 
@@ -83,11 +86,11 @@ BATCH_SIZE = 32
 train_dataset = train_dataset.repeat().shuffle(num_train_examples).batch(BATCH_SIZE)
 test_dataset = test_dataset.batch(BATCH_SIZE)
 
-model.fit(train_dataset, epochs=5, steps_per_epoch=math.ceil(num_train_examples/BATCH_SIZE))
+model.fit(train_dataset, epochs=5, steps_per_epoch=600000)
 
 # evaluate accuracy
 
-test_loss, test_accuracy = model.evaluate(test_dataset, steps=math.ceil(num_test_examples/32))
+test_loss, test_accuracy = model.evaluate(test_dataset, steps=math.ceil(num_test_examples))
 print('Accuracy on test dataset:', test_accuracy)
 
 for test_images, test_labels in test_dataset.take(1):
