@@ -53,7 +53,7 @@ plt.show()
 # Verify that the data is in the correct format and we're ready to build and train the network.
 
 plt.figure(figsize=(10,10))
-for i, (image, label) in enumerate(train_dataset.take(25)):
+for i, (image, label) in enumerate(train_dataset.take(25).cache()):
     image = image.numpy().reshape((28,28))
     plt.subplot(5,5,i+1)
     plt.xticks([])
@@ -80,8 +80,8 @@ model.compile(optimizer='adam',
 # train the model
 
 BATCH_SIZE = 32
-train_dataset = train_dataset.cache().repeat().shuffle(num_train_examples).batch(BATCH_SIZE)
-test_dataset = test_dataset.cache().batch(BATCH_SIZE)
+train_dataset = train_dataset.repeat().shuffle(num_train_examples).batch(BATCH_SIZE)
+test_dataset = test_dataset.batch(BATCH_SIZE)
 
 model.fit(train_dataset, epochs=5, steps_per_epoch=math.ceil(num_train_examples/BATCH_SIZE))
 
@@ -89,3 +89,51 @@ model.fit(train_dataset, epochs=5, steps_per_epoch=math.ceil(num_train_examples/
 
 test_loss, test_accuracy = model.evaluate(test_dataset, steps=math.ceil(num_test_examples/32))
 print('Accuracy on test dataset:', test_accuracy)
+
+for test_images, test_labels in test_dataset.take(1):
+  test_images = test_images.numpy()
+  test_labels = test_labels.numpy()
+  predictions = model.predict(test_images)
+
+  predictions.shape
+
+  predictions[0]
+
+  test_labels[0]
+
+def plot_image(i, predictions_array, true_labels, images):
+  predictions_array, true_label, img = predictions_array[i], true_labels[i], images[i]
+  plt.grid(False)
+  plt.xticks([])
+  plt.yticks([])
+  plt.imshow(img[...,0], cmap=plt.cm.binary)
+
+  predicted_label = np.argmax(predictions_array)
+  if predicted_label == true_label:
+    color = 'blue'
+  else:
+    color = 'red'
+  
+  plt.xlabel("{} {:2.0f}% ({})".format(class_names[predicted_label],
+                                100*np.max(predictions_array),
+                                class_names[true_label]),
+                                color=color)
+
+def plot_value_array(i, predictions_array, true_label):
+  predictions_array, true_label = predictions_array[i], true_label[i]
+  plt.grid(False)
+  plt.xticks([])
+  plt.yticks([])
+  thisplot = plt.bar(range(10), predictions_array, color="#777777")
+  plt.ylim([0, 1]) 
+  predicted_label = np.argmax(predictions_array)
+  
+  thisplot[predicted_label].set_color('red')
+  thisplot[true_label].set_color('blue')
+
+i = 0
+plt.figure(figsize=(6,3))
+plt.subplot(1,2,1)
+plot_image(i, predictions, test_labels, test_images)
+plt.subplot(1,2,2)
+plot_value_array(i, predictions, test_labels)
