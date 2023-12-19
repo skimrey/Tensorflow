@@ -53,7 +53,7 @@ plt.show()
 # Verify that the data is in the correct format and we're ready to build and train the network.
 
 plt.figure(figsize=(10,10))
-for i, (image, label) in enumerate(train_dataset.take(25).cache()):
+for i, (image, label) in enumerate(train_dataset.take(25)):
     image = image.numpy().reshape((28,28))
     plt.subplot(5,5,i+1)
     plt.xticks([])
