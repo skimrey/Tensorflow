@@ -1,5 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
+from tkinter import filedialog
+from tkinter import messagebox
 import tensorflow as tf
 import tensorflow_datasets as tfds
 import numpy as np
@@ -79,12 +81,18 @@ def update_dropdown(*args):
     category = category_var.get()
     dataset_dropdown['values'] = datasets.get(category, [])
 
+
 # Function to create and train the model based on user inputs
 def build_model():
     # Get user inputs
     num_layers = int(num_layers_var.get())
+    layer_types = [layer_type_vars[i].get() for i in range(num_layers)]
     neurons_per_layer = [int(neurons_vars[i].get()) for i in range(num_layers)]
+    activations_per_layer = [activation_vars[i].get() for i in range(num_layers)]
     dataset_name = dataset_var.get()
+    epochs = int(epochs_var.get())
+    batch_size = int(batch_size_var.get())
+    steps_per_epoch = int(steps_per_epoch_var.get())
     
     # Load dataset
     dataset, metadata = tfds.load(dataset_name, as_supervised=True, with_info=True)
@@ -101,19 +109,29 @@ def build_model():
 
     train_dataset = train_dataset.map(normalize)
     test_dataset = test_dataset.map(normalize)
-    train_dataset = train_dataset.cache().shuffle(num_train_examples).batch(32)
-    test_dataset = test_dataset.cache().batch(32)
+    train_dataset = train_dataset.cache().shuffle(num_train_examples).batch(batch_size)
+    test_dataset = test_dataset.cache().batch(batch_size)
 
     # Build model
     model = tf.keras.Sequential()
     model.add(tf.keras.layers.Flatten(input_shape=(28, 28, 1)))
-    for neurons in neurons_per_layer:
-        model.add(tf.keras.layers.Dense(neurons, activation='relu'))
+    for i in range(num_layers):
+        layer_type = layer_types[i]
+        neurons = neurons_per_layer[i]
+        activation = activations_per_layer[i]
+        if layer_type == "Dense Layer":
+            model.add(tf.keras.layers.Dense(neurons, activation=activation))
+        elif layer_type == "Convolutional Layer":
+            model.add(tf.keras.layers.Conv2D(neurons, (3, 3), activation=activation))
+        elif layer_type == "Pooling Layer":
+            model.add(tf.keras.layers.MaxPooling2D((2, 2)))
+        elif layer_type == "Recurrent Layer":
+            model.add(tf.keras.layers.SimpleRNN(neurons, activation=activation))
     model.add(tf.keras.layers.Dense(10, activation='softmax'))
 
     model.compile(optimizer='adam', loss=tf.keras.losses.SparseCategoricalCrossentropy(), metrics=['accuracy'])
     
-    model.fit(train_dataset, epochs=5, steps_per_epoch=num_train_examples//32)
+    model.fit(train_dataset, epochs=epochs, steps_per_epoch=steps_per_epoch)
     
     test_loss, test_accuracy = model.evaluate(test_dataset)
     result_label.config(text=f'Test accuracy: {test_accuracy:.4f}')
@@ -129,6 +147,24 @@ def build_model():
         plt.subplot(1,2,2)
         plot_value_array(0, predictions, test_labels)
         plt.show()
+        # Enable the save button after training
+    save_button.config(state=tk.NORMAL)
+    
+    # Store the trained model for later saving
+    root.model = model
+
+def save_model():
+    if hasattr(root, 'model'):
+        model = root.model
+        save_path = filedialog.asksaveasfilename(defaultextension=".h5", filetypes=[("HDF5 files", "*.h5"), ("All files", "*.*")])
+        if save_path:
+            model.save(save_path)
+            messagebox.showinfo("Model Saved", f"Model successfully saved to {save_path}")
+    else:
+        messagebox.showerror("Error", "No model to save. Train a model first.")
+
+
+
 
 def update_neuron_entries(*args):
     num_layers = int(num_layers_var.get())
@@ -137,13 +173,29 @@ def update_neuron_entries(*args):
         widget.destroy()
     # Create new neuron entries based on num_layers
     for i in range(num_layers):
-        layer_label = ttk.Label(neuron_frame, text=f"Neurons in Layer {i+1}:")
+        layer_label = ttk.Label(neuron_frame, text=f"Layer {i+1} Type:")
         layer_label.grid(column=0, row=i, padx=10, pady=5)
+        layer_type_var = tk.StringVar(value="Dense Layer")
+        layer_type_dropdown = ttk.Combobox(neuron_frame, textvariable=layer_type_var)
+        layer_type_dropdown['values'] = ["Dense Layer", "Convolutional Layer", "Pooling Layer", "Recurrent Layer"]
+        layer_type_dropdown.grid(column=1, row=i, padx=10, pady=5)
+        layer_type_vars.append(layer_type_var)
+
+        neurons_label = ttk.Label(neuron_frame, text=f"Neurons in Layer {i+1}:")
+        neurons_label.grid(column=2, row=i, padx=10, pady=5)
         neurons_var = tk.StringVar(value="128")
         neurons_entry = ttk.Entry(neuron_frame, textvariable=neurons_var)
-        neurons_entry.grid(column=1, row=i, padx=10, pady=5)
+        neurons_entry.grid(column=3, row=i, padx=10, pady=5)
         neurons_vars.append(neurons_var)
-
+        
+        activation_label = ttk.Label(neuron_frame, text=f"Activation for Layer {i+1}:")
+        activation_label.grid(column=4, row=i, padx=10, pady=5)
+        activation_var = tk.StringVar(value="relu")
+        activation_dropdown = ttk.Combobox(neuron_frame, textvariable=activation_var)
+        activation_dropdown['values'] = ["relu", "sigmoid", "tanh", "softmax", "softplus", "softsign", "swish"]
+        activation_dropdown.grid(column=5, row=i, padx=10, pady=5)
+        activation_vars.append(activation_var)
+        
 # Create GUI elements
 num_layers_label = ttk.Label(root, text="Number of Layers:")
 num_layers_label.grid(column=0, row=0, padx=10, pady=10)
@@ -157,30 +209,54 @@ neuron_frame = ttk.Frame(root)
 neuron_frame.grid(column=0, row=1, columnspan=2)
 
 neurons_vars = []
+layer_type_vars = []
+activation_vars = []
 
 # Initially display 1 neuron entry
 update_neuron_entries()
 
-category_var = tk.StringVar(value="Dataset Collections")
+# Additional Model Parameters
+epochs_label = ttk.Label(root, text="Epochs:")
+epochs_label.grid(column=0, row=2, padx=10, pady=10)
+epochs_var = tk.StringVar(value="5")
+epochs_entry = ttk.Entry(root, textvariable=epochs_var)
+epochs_entry.grid(column=1, row=2, padx=10, pady=10)
+
+batch_size_label = ttk.Label(root, text="Batch Size:")
+batch_size_label.grid(column=0, row=3, padx=10, pady=10)
+batch_size_var = tk.StringVar(value="32")
+batch_size_entry = ttk.Entry(root, textvariable=batch_size_var)
+batch_size_entry.grid(column=1, row=3, padx=10, pady=10)
+
+steps_per_epoch_label = ttk.Label(root, text="Steps per Epoch:")
+steps_per_epoch_label.grid(column=0, row=4, padx=10, pady=10)
+steps_per_epoch_var = tk.StringVar(value="1000")
+steps_per_epoch_entry = ttk.Entry(root, textvariable=steps_per_epoch_var)
+steps_per_epoch_entry.grid(column=1, row=4, padx=10, pady=10)
+
+category_var = tk.StringVar(value="")
 category_label = ttk.Label(root, text="Category:")
-category_label.grid(column=0, row=2, padx=10, pady=10)
+category_label.grid(column=0, row=5, padx=10, pady=10)
 category_dropdown = ttk.Combobox(root, textvariable=category_var)
 category_dropdown['values'] = list(datasets.keys())
-category_dropdown.grid(column=1, row=2, padx=10, pady=10)
+category_dropdown.grid(column=1, row=5, padx=10, pady=10)
 category_dropdown.bind("<<ComboboxSelected>>", update_dropdown)
 
 # Create dataset dropdown
 dataset_var = tk.StringVar()
 dataset_label = ttk.Label(root, text="Dataset:")
-dataset_label.grid(column=0, row=3, padx=10, pady=10)
+dataset_label.grid(column=0, row=6, padx=10, pady=10)
 dataset_dropdown = ttk.Combobox(root, textvariable=dataset_var)
-dataset_dropdown.grid(column=1, row=3, padx=10, pady=10)
+dataset_dropdown.grid(column=1, row=6, padx=10, pady=10)
 
 build_button = ttk.Button(root, text="Build and Train Model", command=build_model)
-build_button.grid(column=0, row=4, columnspan=2, padx=10, pady=10)
+build_button.grid(column=0, row=7, columnspan=2, padx=10, pady=10)
+
+save_button = ttk.Button(root, text="Save Model", command=save_model, state=tk.DISABLED)
+save_button.grid(column=0, row=8, columnspan=2, padx=10, pady=10)
 
 result_label = ttk.Label(root, text="")
-result_label.grid(column=0, row=5, columnspan=2, padx=10, pady=10)
+result_label.grid(column=0, row=9, columnspan=2, padx=10, pady=10)
 
 # Start the main loop
 root.mainloop()
