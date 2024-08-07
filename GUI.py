@@ -83,7 +83,7 @@ def update_dropdown(*args):
 def build_model():
     # Get user inputs
     num_layers = int(num_layers_var.get())
-    num_neurons = int(num_neurons_var.get())
+    neurons_per_layer = [int(neurons_vars[i].get()) for i in range(num_layers)]
     dataset_name = dataset_var.get()
     
     # Load dataset
@@ -107,8 +107,8 @@ def build_model():
     # Build model
     model = tf.keras.Sequential()
     model.add(tf.keras.layers.Flatten(input_shape=(28, 28, 1)))
-    for _ in range(num_layers):
-        model.add(tf.keras.layers.Dense(num_neurons, activation='relu'))
+    for neurons in neurons_per_layer:
+        model.add(tf.keras.layers.Dense(neurons, activation='relu'))
     model.add(tf.keras.layers.Dense(10, activation='softmax'))
 
     model.compile(optimizer='adam', loss=tf.keras.losses.SparseCategoricalCrossentropy(), metrics=['accuracy'])
@@ -130,21 +130,38 @@ def build_model():
         plot_value_array(0, predictions, test_labels)
         plt.show()
 
+def update_neuron_entries(*args):
+    num_layers = int(num_layers_var.get())
+    # Remove current neuron entries
+    for widget in neuron_frame.winfo_children():
+        widget.destroy()
+    # Create new neuron entries based on num_layers
+    for i in range(num_layers):
+        layer_label = ttk.Label(neuron_frame, text=f"Neurons in Layer {i+1}:")
+        layer_label.grid(column=0, row=i, padx=10, pady=5)
+        neurons_var = tk.StringVar(value="128")
+        neurons_entry = ttk.Entry(neuron_frame, textvariable=neurons_var)
+        neurons_entry.grid(column=1, row=i, padx=10, pady=5)
+        neurons_vars.append(neurons_var)
+
 # Create GUI elements
 num_layers_label = ttk.Label(root, text="Number of Layers:")
 num_layers_label.grid(column=0, row=0, padx=10, pady=10)
-num_layers_var = tk.StringVar(value="3")
+num_layers_var = tk.StringVar(value="1")
 num_layers_entry = ttk.Entry(root, textvariable=num_layers_var)
 num_layers_entry.grid(column=1, row=0, padx=10, pady=10)
+num_layers_var.trace_add("write", update_neuron_entries)
 
-num_neurons_label = ttk.Label(root, text="Number of Neurons per Layer:")
-num_neurons_label.grid(column=0, row=1, padx=10, pady=10)
-num_neurons_var = tk.StringVar(value="128")
-num_neurons_entry = ttk.Entry(root, textvariable=num_neurons_var)
-num_neurons_entry.grid(column=1, row=1, padx=10, pady=10)
+# Frame to hold neuron entries
+neuron_frame = ttk.Frame(root)
+neuron_frame.grid(column=0, row=1, columnspan=2)
 
-# Create category dropdown
-category_var = tk.StringVar()
+neurons_vars = []
+
+# Initially display 1 neuron entry
+update_neuron_entries()
+
+category_var = tk.StringVar(value="Dataset Collections")
 category_label = ttk.Label(root, text="Category:")
 category_label.grid(column=0, row=2, padx=10, pady=10)
 category_dropdown = ttk.Combobox(root, textvariable=category_var)
