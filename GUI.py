@@ -81,19 +81,16 @@ def update_dropdown(*args):
     category = category_var.get()
     dataset_dropdown['values'] = datasets.get(category, [])
 
-
 # Function to create and train the model based on user inputs
 def build_model():
-    # Get user inputs
     num_layers = int(num_layers_var.get())
-    layer_types = [layer_type_vars[i].get() for i in range(num_layers)]
-    neurons_per_layer = [int(neurons_vars[i].get()) for i in range(num_layers)]
-    activations_per_layer = [activation_vars[i].get() for i in range(num_layers)]
+    layer_configs = [layer_config[i] for i in range(num_layers)]
+    
     dataset_name = dataset_var.get()
     epochs = int(epochs_var.get())
     batch_size = int(batch_size_var.get())
     steps_per_epoch = int(steps_per_epoch_var.get())
-    
+
     # Load dataset
     dataset, metadata = tfds.load(dataset_name, as_supervised=True, with_info=True)
     train_dataset, test_dataset = dataset['train'], dataset['test']
@@ -114,45 +111,43 @@ def build_model():
 
     # Build model
     model = tf.keras.Sequential()
-    model.add(tf.keras.layers.Flatten(input_shape=(28, 28, 1)))
-    for i in range(num_layers):
-        layer_type = layer_types[i]
-        neurons = neurons_per_layer[i]
-        activation = activations_per_layer[i]
-        if layer_type == "Dense Layer":
-            model.add(tf.keras.layers.Dense(neurons, activation=activation))
-        elif layer_type == "Convolutional Layer":
-            model.add(tf.keras.layers.Conv2D(neurons, (3, 3), activation=activation))
-        elif layer_type == "Pooling Layer":
-            model.add(tf.keras.layers.MaxPooling2D((2, 2)))
-        elif layer_type == "Recurrent Layer":
-            model.add(tf.keras.layers.SimpleRNN(neurons, activation=activation))
-    model.add(tf.keras.layers.Dense(10, activation='softmax'))
+    first_layer_config = layer_configs[0]
 
-    model.compile(optimizer='adam', loss=tf.keras.losses.SparseCategoricalCrossentropy(), metrics=['accuracy'])
-    
-    model.fit(train_dataset, epochs=epochs, steps_per_epoch=steps_per_epoch)
-    
-    test_loss, test_accuracy = model.evaluate(test_dataset)
-    result_label.config(text=f'Test accuracy: {test_accuracy:.4f}')
-    
-    for test_images, test_labels in test_dataset.take(1):
-        test_images = test_images.numpy()
-        test_labels = test_labels.numpy()
-        predictions = model.predict(test_images)
-        
-        plt.figure(figsize=(6,3))
-        plt.subplot(1,2,1)
-        plot_image(0, predictions, test_labels, test_images, class_names)
-        plt.subplot(1,2,2)
-        plot_value_array(0, predictions, test_labels)
-        plt.show()
-        # Enable the save button after training
-    save_button.config(state=tk.NORMAL)
-    
-    # Store the trained model for later saving
-    root.model = model
+    # Input shape for the first layer
+    model.add(tf.keras.layers.Input(shape=(int(first_layer_config['input_shape_x'].get()),
+                                            int(first_layer_config['input_shape_y'].get()),
+                                            int(first_layer_config['input_shape_z'].get()))))
 
+    for config in layer_configs:
+        layer_type = config['type'].get()
+        units = int(config['units'].get())
+        activation = config['activation'].get()
+
+        if layer_type == "Dense":
+            model.add(tf.keras.layers.Dense(units, activation=activation))
+        elif layer_type == "Conv2D":
+            kernel_size = (int(config['kernel_size_x'].get()), int(config['kernel_size_y'].get()))
+            model.add(tf.keras.layers.Conv2D(filters=units, kernel_size=kernel_size, activation=activation))
+        elif layer_type == "MaxPooling2D":
+            pool_size = (int(config['pool_size_x'].get()), int(config['pool_size_y'].get()))
+            model.add(tf.keras.layers.MaxPooling2D(pool_size=pool_size))
+        elif layer_type == "Flatten":
+            model.add(tf.keras.layers.Flatten())
+        elif layer_type == "SimpleRNN":
+            model.add(tf.keras.layers.SimpleRNN(units, activation=activation))
+
+    model.compile(optimizer='adam',
+                  loss='sparse_categorical_crossentropy',
+                  metrics=['accuracy'])
+
+    history = model.fit(train_dataset, epochs=epochs, validation_data=test_dataset,
+                        steps_per_epoch=steps_per_epoch)
+    
+    root.model = model  # Save the trained model in the root widget
+    messagebox.showinfo("Model Built", "Model has been built and trained successfully.")
+    return model
+    
+    
 def save_model():
     if hasattr(root, 'model'):
         model = root.model
@@ -163,39 +158,192 @@ def save_model():
     else:
         messagebox.showerror("Error", "No model to save. Train a model first.")
 
-
-
-
+# Update this function to add pooling and kernel size inputs
 def update_neuron_entries(*args):
     num_layers = int(num_layers_var.get())
-    # Remove current neuron entries
     for widget in neuron_frame.winfo_children():
         widget.destroy()
-    # Create new neuron entries based on num_layers
-    for i in range(num_layers):
-        layer_label = ttk.Label(neuron_frame, text=f"Layer {i+1} Type:")
-        layer_label.grid(column=0, row=i, padx=10, pady=5)
-        layer_type_var = tk.StringVar(value="Dense Layer")
-        layer_type_dropdown = ttk.Combobox(neuron_frame, textvariable=layer_type_var)
-        layer_type_dropdown['values'] = ["Dense Layer", "Convolutional Layer", "Pooling Layer", "Recurrent Layer"]
-        layer_type_dropdown.grid(column=1, row=i, padx=10, pady=5)
-        layer_type_vars.append(layer_type_var)
+    layer_config.clear()
 
-        neurons_label = ttk.Label(neuron_frame, text=f"Neurons in Layer {i+1}:")
-        neurons_label.grid(column=2, row=i, padx=10, pady=5)
-        neurons_var = tk.StringVar(value="128")
-        neurons_entry = ttk.Entry(neuron_frame, textvariable=neurons_var)
-        neurons_entry.grid(column=3, row=i, padx=10, pady=5)
-        neurons_vars.append(neurons_var)
-        
-        activation_label = ttk.Label(neuron_frame, text=f"Activation for Layer {i+1}:")
-        activation_label.grid(column=4, row=i, padx=10, pady=5)
+    for i in range(num_layers):
+        config = {}
+
+        # Input Shape for the first Layer only
+        if i == 0:
+            input_shape_frame = ttk.Frame(neuron_frame)
+            input_shape_frame.grid(column=0, row=i*2, columnspan=6, padx=10, pady=5, sticky='w')
+
+            input_shape_label = ttk.Label(input_shape_frame, text=f"Input Shape (Layer {i+1}):")
+            input_shape_label.grid(column=0, row=0, padx=10, pady=5, sticky='w')
+
+            input_shape_x_label = ttk.Label(input_shape_frame, text="Width:")
+            input_shape_x_label.grid(column=1, row=0, padx=5, pady=5, sticky='w')
+            input_shape_x_var = tk.StringVar(value="28")
+            input_shape_x_entry = ttk.Entry(input_shape_frame, textvariable=input_shape_x_var, width=10)
+            input_shape_x_entry.grid(column=2, row=0, padx=10, pady=5)
+
+            input_shape_y_label = ttk.Label(input_shape_frame, text="Height:")
+            input_shape_y_label.grid(column=3, row=0, padx=5, pady=5, sticky='w')
+            input_shape_y_var = tk.StringVar(value="28")
+            input_shape_y_entry = ttk.Entry(input_shape_frame, textvariable=input_shape_y_var, width=10)
+            input_shape_y_entry.grid(column=4, row=0, padx=10, pady=5)
+
+            input_shape_z_label = ttk.Label(input_shape_frame, text="Channels:")
+            input_shape_z_label.grid(column=5, row=0, padx=5, pady=5, sticky='w')
+            input_shape_z_var = tk.StringVar(value="1")
+            input_shape_z_entry = ttk.Entry(input_shape_frame, textvariable=input_shape_z_var, width=10)
+            input_shape_z_entry.grid(column=6, row=0, padx=10, pady=5)
+
+            config['input_shape_x'] = input_shape_x_var
+            config['input_shape_y'] = input_shape_y_var
+            config['input_shape_z'] = input_shape_z_var
+
+        # Layer Type
+        layer_label = ttk.Label(neuron_frame, text=f"Layer {i+1} Type:")
+        layer_label.grid(column=0, row=i*2+1, padx=10, pady=5)
+        layer_type_var = tk.StringVar(value="Flatten")
+        layer_type_dropdown = ttk.Combobox(neuron_frame, textvariable=layer_type_var)
+        layer_type_dropdown['values'] = ["Dense", "Conv2D", "MaxPooling2D", "Flatten", "SimpleRNN"]
+        layer_type_dropdown.grid(column=1, row=i*2+1, padx=10, pady=5)
+        layer_type_dropdown.bind("<<ComboboxSelected>>", lambda e: update_layer_specific_entries(config, layer_type_var.get(), i))
+        config['type'] = layer_type_var
+
+        # Units/Filters
+        units_label = ttk.Label(neuron_frame, text=f"Units/Filters (Layer {i+1}):")
+        units_label.grid(column=2, row=i*2+1, padx=10, pady=5)
+        units_var = tk.StringVar(value="128")
+        units_entry = ttk.Entry(neuron_frame, textvariable=units_var, width=10)
+        units_entry.grid(column=3, row=i*2+1, padx=10, pady=5)
+        config['units'] = units_var
+
+        # Activation Function
+        activation_label = ttk.Label(neuron_frame, text=f"Activation (Layer {i+1}):")
+        activation_label.grid(column=4, row=i*2+1, padx=10, pady=5)
         activation_var = tk.StringVar(value="relu")
         activation_dropdown = ttk.Combobox(neuron_frame, textvariable=activation_var)
         activation_dropdown['values'] = ["relu", "sigmoid", "tanh", "softmax", "softplus", "softsign", "swish"]
-        activation_dropdown.grid(column=5, row=i, padx=10, pady=5)
-        activation_vars.append(activation_var)
-        
+        activation_dropdown.grid(column=5, row=i*2+1, padx=10, pady=5)
+        config['activation'] = activation_var
+
+        layer_config.append(config)
+
+def update_layer_specific_entries(config, layer_type, layer_index):
+    # Destroy existing layer-specific entries
+    for widget in neuron_frame.winfo_children():
+        if widget.grid_info().get('row') == layer_index * 2 + 2:
+            widget.destroy()
+
+    # Layer-specific frame
+    layer_frame = ttk.Frame(neuron_frame)
+    layer_frame.grid(column=0, row=layer_index * 2 + 2, columnspan=6, padx=10, pady=5, sticky='w')
+
+    if layer_type == "Conv2D":
+        # Kernel Size
+        kernel_size_label = ttk.Label(layer_frame, text=f"Kernel Size (Layer {layer_index + 1}):")
+        kernel_size_label.grid(column=0, row=0, padx=10, pady=5, sticky='w')
+
+        kernel_size_x_label = ttk.Label(layer_frame, text="Width:")
+        kernel_size_x_label.grid(column=1, row=0, padx=5, pady=5, sticky='w')
+        kernel_size_x_var = tk.StringVar(value="3")
+        kernel_size_x_entry = ttk.Entry(layer_frame, textvariable=kernel_size_x_var, width=5)
+        kernel_size_x_entry.grid(column=2, row=0, padx=10, pady=5)
+
+        kernel_size_y_label = ttk.Label(layer_frame, text="Height:")
+        kernel_size_y_label.grid(column=3, row=0, padx=5, pady=5, sticky='w')
+        kernel_size_y_var = tk.StringVar(value="3")
+        kernel_size_y_entry = ttk.Entry(layer_frame, textvariable=kernel_size_y_var, width=5)
+        kernel_size_y_entry.grid(column=4, row=0, padx=10, pady=5)
+
+        config['kernel_size_x'] = kernel_size_x_var
+        config['kernel_size_y'] = kernel_size_y_var
+
+    elif layer_type == "MaxPooling2D":
+        # Pool Size
+        pool_size_label = ttk.Label(layer_frame, text=f"Pool Size (Layer {layer_index + 1}):")
+        pool_size_label.grid(column=0, row=0, padx=10, pady=5, sticky='w')
+
+        pool_size_x_label = ttk.Label(layer_frame, text="Width:")
+        pool_size_x_label.grid(column=1, row=0, padx=5, pady=5, sticky='w')
+        pool_size_x_var = tk.StringVar(value="2")
+        pool_size_x_entry = ttk.Entry(layer_frame, textvariable=pool_size_x_var, width=5)
+        pool_size_x_entry.grid(column=2, row=0, padx=10, pady=5)
+
+        pool_size_y_label = ttk.Label(layer_frame, text="Height:")
+        pool_size_y_label.grid(column=3, row=0, padx=5, pady=5, sticky='w')
+        pool_size_y_var = tk.StringVar(value="2")
+        pool_size_y_entry = ttk.Entry(layer_frame, textvariable=pool_size_y_var, width=5)
+        pool_size_y_entry.grid(column=4, row=0, padx=10, pady=5)
+
+        config['pool_size_x'] = pool_size_x_var
+        config['pool_size_y'] = pool_size_y_var
+
+    # Destroy existing layer-specific entries
+    for widget in neuron_frame.winfo_children():
+        if widget.grid_info()['row'] == layer_index * 2 + 2:
+            widget.destroy()
+
+    if layer_type == "Conv2D":
+        # Kernel Size
+        kernel_size_frame = ttk.Frame(neuron_frame)
+        kernel_size_frame.grid(column=0, row=layer_index*2+2, columnspan=6, padx=10, pady=5, sticky='w')
+
+        kernel_size_label = ttk.Label(kernel_size_frame, text=f"Kernel Size (Layer {layer_index+1}):")
+        kernel_size_label.grid(column=0, row=0, padx=10, pady=5, sticky='w')
+
+        kernel_size_x_label = ttk.Label(kernel_size_frame, text="Width:")
+        kernel_size_x_label.grid(column=1, row=0, padx=5, pady=5, sticky='w')
+        kernel_size_x_var = tk.StringVar(value="3")
+        kernel_size_x_entry = ttk.Entry(kernel_size_frame, textvariable=kernel_size_x_var, width=5)
+        kernel_size_x_entry.grid(column=2, row=0, padx=10, pady=5)
+
+        kernel_size_y_label = ttk.Label(kernel_size_frame, text="Height:")
+        kernel_size_y_label.grid(column=3, row=0, padx=5, pady=5, sticky='w')
+        kernel_size_y_var = tk.StringVar(value="3")
+        kernel_size_y_entry = ttk.Entry(kernel_size_frame, textvariable=kernel_size_y_var, width=5)
+        kernel_size_y_entry.grid(column=4, row=0, padx=10, pady=5)
+
+        config['kernel_size_x'] = kernel_size_x_var
+        config['kernel_size_y'] = kernel_size_y_var
+
+    elif layer_type == "MaxPooling2D":
+        # Pool Size
+        pool_size_frame = ttk.Frame(neuron_frame)
+        pool_size_frame.grid(column=0, row=layer_index*2+2, columnspan=6, padx=10, pady=5, sticky='w')
+
+        pool_size_label = ttk.Label(pool_size_frame, text=f"Pool Size (Layer {layer_index+1}):")
+        pool_size_label.grid(column=0, row=0, padx=10, pady=5, sticky='w')
+
+        pool_size_x_label = ttk.Label(pool_size_frame, text="Width:")
+        pool_size_x_label.grid(column=1, row=0, padx=5, pady=5, sticky='w')
+        pool_size_x_var = tk.StringVar(value="2")
+        pool_size_x_entry = ttk.Entry(pool_size_frame, textvariable=pool_size_x_var, width=5)
+        pool_size_x_entry.grid(column=2, row=0, padx=10, pady=5)
+
+        pool_size_y_label = ttk.Label(pool_size_frame, text="Height:")
+        pool_size_y_label.grid(column=3, row=0, padx=5, pady=5, sticky='w')
+        pool_size_y_var = tk.StringVar(value="2")
+        pool_size_y_entry = ttk.Entry(pool_size_frame, textvariable=pool_size_y_var, width=5)
+        pool_size_y_entry.grid(column=4, row=0, padx=10, pady=5)
+
+        config['pool_size_x'] = pool_size_x_var
+        config['pool_size_y'] = pool_size_y_var
+
+    # Find the frame corresponding to the layer_index
+    for widget in neuron_frame.winfo_children():
+        if isinstance(widget, ttk.Frame):
+            if widget.grid_info()['row'] == layer_index*3:
+                frame = widget
+                break
+    else:
+        return
+
+    # Clear existing size inputs
+    for widget in frame.winfo_children():
+        if widget.grid_info()['row'] > 0:
+            widget.destroy()
+
+
+
 # Create GUI elements
 num_layers_label = ttk.Label(root, text="Number of Layers:")
 num_layers_label.grid(column=0, row=0, padx=10, pady=10)
@@ -208,11 +356,7 @@ num_layers_var.trace_add("write", update_neuron_entries)
 neuron_frame = ttk.Frame(root)
 neuron_frame.grid(column=0, row=1, columnspan=2)
 
-neurons_vars = []
-layer_type_vars = []
-activation_vars = []
-
-# Initially display 1 neuron entry
+layer_config = []
 update_neuron_entries()
 
 # Additional Model Parameters
@@ -234,29 +378,31 @@ steps_per_epoch_var = tk.StringVar(value="1000")
 steps_per_epoch_entry = ttk.Entry(root, textvariable=steps_per_epoch_var)
 steps_per_epoch_entry.grid(column=1, row=4, padx=10, pady=10)
 
-category_var = tk.StringVar(value="")
-category_label = ttk.Label(root, text="Category:")
+# Dataset Selection
+category_label = ttk.Label(root, text="Dataset Category:")
 category_label.grid(column=0, row=5, padx=10, pady=10)
+category_var = tk.StringVar(value="Dataset Collections")
 category_dropdown = ttk.Combobox(root, textvariable=category_var)
 category_dropdown['values'] = list(datasets.keys())
 category_dropdown.grid(column=1, row=5, padx=10, pady=10)
-category_dropdown.bind("<<ComboboxSelected>>", update_dropdown)
+category_var.trace("w", update_dropdown)
 
-# Create dataset dropdown
-dataset_var = tk.StringVar()
 dataset_label = ttk.Label(root, text="Dataset:")
 dataset_label.grid(column=0, row=6, padx=10, pady=10)
+dataset_var = tk.StringVar()
 dataset_dropdown = ttk.Combobox(root, textvariable=dataset_var)
 dataset_dropdown.grid(column=1, row=6, padx=10, pady=10)
 
-build_button = ttk.Button(root, text="Build and Train Model", command=build_model)
-build_button.grid(column=0, row=7, columnspan=2, padx=10, pady=10)
+update_dropdown()
 
-save_button = ttk.Button(root, text="Save Model", command=save_model, state=tk.DISABLED)
-save_button.grid(column=0, row=8, columnspan=2, padx=10, pady=10)
+# Buttons
+train_button = ttk.Button(root, text="Build & Train Model", command=build_model)
+train_button.grid(column=0, row=7, padx=10, pady=20, columnspan=2)
+
+save_button = ttk.Button(root, text="Save Model", command=save_model)
+save_button.grid(column=0, row=8, padx=10, pady=10, columnspan=2)
 
 result_label = ttk.Label(root, text="")
-result_label.grid(column=0, row=9, columnspan=2, padx=10, pady=10)
+result_label.grid(column=0, row=9, columnspan=2, pady=10)
 
-# Start the main loop
 root.mainloop()
