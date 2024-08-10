@@ -171,7 +171,7 @@ def update_neuron_entries(*args):
         # Input Shape for the first Layer only
         if i == 0:
             input_shape_frame = ttk.Frame(neuron_frame)
-            input_shape_frame.grid(column=0, row=i*2, columnspan=6, padx=10, pady=5, sticky='w')
+            input_shape_frame.grid(column=0, row=i*10, columnspan=8, padx=10, pady=5, sticky='w')
 
             input_shape_label = ttk.Label(input_shape_frame, text=f"Input Shape (Layer {i+1}):")
             input_shape_label.grid(column=0, row=0, padx=10, pady=5, sticky='w')
@@ -200,147 +200,92 @@ def update_neuron_entries(*args):
 
         # Layer Type
         layer_label = ttk.Label(neuron_frame, text=f"Layer {i+1} Type:")
-        layer_label.grid(column=0, row=i*2+1, padx=10, pady=5)
+        layer_label.grid(column=0, row=i*10+1, padx=10, pady=5, sticky='w')
         layer_type_var = tk.StringVar(value="Flatten")
         layer_type_dropdown = ttk.Combobox(neuron_frame, textvariable=layer_type_var)
         layer_type_dropdown['values'] = ["Dense", "Conv2D", "MaxPooling2D", "Flatten", "SimpleRNN"]
-        layer_type_dropdown.grid(column=1, row=i*2+1, padx=10, pady=5)
-        layer_type_dropdown.bind("<<ComboboxSelected>>", lambda e: update_layer_specific_entries(config, layer_type_var.get(), i))
-        config['type'] = layer_type_var
+        layer_type_dropdown.grid(column=1, row=i*10+1, padx=10, pady=5)
+        layer_type_dropdown.bind("<<ComboboxSelected>>", lambda e, idx=i: update_layer_specific_entries(idx))
+        config['layer_type_var'] = layer_type_var
 
         # Units/Filters
         units_label = ttk.Label(neuron_frame, text=f"Units/Filters (Layer {i+1}):")
-        units_label.grid(column=2, row=i*2+1, padx=10, pady=5)
+        units_label.grid(column=2, row=i*10+1, padx=10, pady=5, sticky='w')
         units_var = tk.StringVar(value="128")
         units_entry = ttk.Entry(neuron_frame, textvariable=units_var, width=10)
-        units_entry.grid(column=3, row=i*2+1, padx=10, pady=5)
+        units_entry.grid(column=3, row=i*10+1, padx=10, pady=5)
         config['units'] = units_var
 
         # Activation Function
         activation_label = ttk.Label(neuron_frame, text=f"Activation (Layer {i+1}):")
-        activation_label.grid(column=4, row=i*2+1, padx=10, pady=5)
+        activation_label.grid(column=4, row=i*10+1, padx=10, pady=5, sticky='w')
         activation_var = tk.StringVar(value="relu")
         activation_dropdown = ttk.Combobox(neuron_frame, textvariable=activation_var)
         activation_dropdown['values'] = ["relu", "sigmoid", "tanh", "softmax", "softplus", "softsign", "swish"]
-        activation_dropdown.grid(column=5, row=i*2+1, padx=10, pady=5)
+        activation_dropdown.grid(column=5, row=i*10+1, padx=10, pady=5)
         config['activation'] = activation_var
+
+        # Kernel Size Frame
+        kernel_size_frame = ttk.Frame(neuron_frame)
+        kernel_size_frame.grid(column=0, row=i*10+2, columnspan=8, padx=10, pady=5, sticky='w')
+        kernel_size_frame.grid_forget()  # Hidden by default
+
+        # Pool Size Frame
+        pool_size_frame = ttk.Frame(neuron_frame)
+        pool_size_frame.grid(column=0, row=i*10+3, columnspan=8, padx=10, pady=5, sticky='w')
+        pool_size_frame.grid_forget()  # Hidden by default
+
+        config['kernel_size_frame'] = kernel_size_frame
+        config['pool_size_frame'] = pool_size_frame
 
         layer_config.append(config)
 
-def update_layer_specific_entries(config, layer_type, layer_index):
-    # Destroy existing layer-specific entries
-    for widget in neuron_frame.winfo_children():
-        if widget.grid_info().get('row') == layer_index * 2 + 2:
-            widget.destroy()
+    def update_layer_specific_entries(layer_index):
+        layer_type = layer_config[layer_index]['layer_type_var'].get()
 
-    # Layer-specific frame
-    layer_frame = ttk.Frame(neuron_frame)
-    layer_frame.grid(column=0, row=layer_index * 2 + 2, columnspan=6, padx=10, pady=5, sticky='w')
+        kernel_frame = layer_config[layer_index]['kernel_size_frame']
+        pool_frame = layer_config[layer_index]['pool_size_frame']
 
-    if layer_type == "Conv2D":
-        # Kernel Size
-        kernel_size_label = ttk.Label(layer_frame, text=f"Kernel Size (Layer {layer_index + 1}):")
-        kernel_size_label.grid(column=0, row=0, padx=10, pady=5, sticky='w')
+        # Hide both frames initially
+        kernel_frame.grid_forget()
+        pool_frame.grid_forget()
 
-        kernel_size_x_label = ttk.Label(layer_frame, text="Width:")
-        kernel_size_x_label.grid(column=1, row=0, padx=5, pady=5, sticky='w')
-        kernel_size_x_var = tk.StringVar(value="3")
-        kernel_size_x_entry = ttk.Entry(layer_frame, textvariable=kernel_size_x_var, width=5)
-        kernel_size_x_entry.grid(column=2, row=0, padx=10, pady=5)
+        if layer_type == "Conv2D":
+            kernel_frame.grid(row=layer_index*10+2, column=0, columnspan=8, padx=10, pady=5, sticky='w')  # Show kernel size frame
+            pool_frame.grid_forget()  # Hide pool size frame
 
-        kernel_size_y_label = ttk.Label(layer_frame, text="Height:")
-        kernel_size_y_label.grid(column=3, row=0, padx=5, pady=5, sticky='w')
-        kernel_size_y_var = tk.StringVar(value="3")
-        kernel_size_y_entry = ttk.Entry(layer_frame, textvariable=kernel_size_y_var, width=5)
-        kernel_size_y_entry.grid(column=4, row=0, padx=10, pady=5)
+            # Kernel Size
+            for widget in kernel_frame.winfo_children():
+                widget.destroy()
 
-        config['kernel_size_x'] = kernel_size_x_var
-        config['kernel_size_y'] = kernel_size_y_var
+            ttk.Label(kernel_frame, text=f"Kernel Size (Layer {layer_index + 1}):").grid(column=0, row=0, padx=10, pady=5, sticky='w')
+            ttk.Label(kernel_frame, text="Width:").grid(column=1, row=0, padx=5, pady=5, sticky='w')
+            kernel_size_x_var = tk.StringVar(value="3")
+            ttk.Entry(kernel_frame, textvariable=kernel_size_x_var, width=5).grid(column=2, row=0, padx=10, pady=5)
+            ttk.Label(kernel_frame, text="Height:").grid(column=3, row=0, padx=5, pady=5, sticky='w')
+            kernel_size_y_var = tk.StringVar(value="3")
+            ttk.Entry(kernel_frame, textvariable=kernel_size_y_var, width=5).grid(column=4, row=0, padx=10, pady=5)
+            layer_config[layer_index]['kernel_size_x'] = kernel_size_x_var
+            layer_config[layer_index]['kernel_size_y'] = kernel_size_y_var
 
-    elif layer_type == "MaxPooling2D":
-        # Pool Size
-        pool_size_label = ttk.Label(layer_frame, text=f"Pool Size (Layer {layer_index + 1}):")
-        pool_size_label.grid(column=0, row=0, padx=10, pady=5, sticky='w')
+        elif layer_type == "MaxPooling2D":
+            kernel_frame.grid_forget()  # Hide kernel size frame
+            pool_frame.grid(row=layer_index*10+2, column=0, columnspan=8, padx=10, pady=5, sticky='w')  # Show pool size frame
 
-        pool_size_x_label = ttk.Label(layer_frame, text="Width:")
-        pool_size_x_label.grid(column=1, row=0, padx=5, pady=5, sticky='w')
-        pool_size_x_var = tk.StringVar(value="2")
-        pool_size_x_entry = ttk.Entry(layer_frame, textvariable=pool_size_x_var, width=5)
-        pool_size_x_entry.grid(column=2, row=0, padx=10, pady=5)
+            # Pool Size
+            for widget in pool_frame.winfo_children():
+                widget.destroy()
 
-        pool_size_y_label = ttk.Label(layer_frame, text="Height:")
-        pool_size_y_label.grid(column=3, row=0, padx=5, pady=5, sticky='w')
-        pool_size_y_var = tk.StringVar(value="2")
-        pool_size_y_entry = ttk.Entry(layer_frame, textvariable=pool_size_y_var, width=5)
-        pool_size_y_entry.grid(column=4, row=0, padx=10, pady=5)
+            ttk.Label(pool_frame, text=f"Pool Size (Layer {layer_index + 1}):").grid(column=0, row=0, padx=10, pady=5, sticky='w')
+            ttk.Label(pool_frame, text="Width:").grid(column=1, row=0, padx=5, pady=5, sticky='w')
+            pool_size_x_var = tk.StringVar(value="2")
+            ttk.Entry(pool_frame, textvariable=pool_size_x_var, width=5).grid(column=2, row=0, padx=10, pady=5)
+            ttk.Label(pool_frame, text="Height:").grid(column=3, row=0, padx=5, pady=5, sticky='w')
+            pool_size_y_var = tk.StringVar(value="2")
+            ttk.Entry(pool_frame, textvariable=pool_size_y_var, width=5).grid(column=4, row=0, padx=10, pady=5)
+            layer_config[layer_index]['pool_size_x'] = pool_size_x_var
+            layer_config[layer_index]['pool_size_y'] = pool_size_y_var
 
-        config['pool_size_x'] = pool_size_x_var
-        config['pool_size_y'] = pool_size_y_var
-
-    # Destroy existing layer-specific entries
-    for widget in neuron_frame.winfo_children():
-        if widget.grid_info()['row'] == layer_index * 2 + 2:
-            widget.destroy()
-
-    if layer_type == "Conv2D":
-        # Kernel Size
-        kernel_size_frame = ttk.Frame(neuron_frame)
-        kernel_size_frame.grid(column=0, row=layer_index*2+2, columnspan=6, padx=10, pady=5, sticky='w')
-
-        kernel_size_label = ttk.Label(kernel_size_frame, text=f"Kernel Size (Layer {layer_index+1}):")
-        kernel_size_label.grid(column=0, row=0, padx=10, pady=5, sticky='w')
-
-        kernel_size_x_label = ttk.Label(kernel_size_frame, text="Width:")
-        kernel_size_x_label.grid(column=1, row=0, padx=5, pady=5, sticky='w')
-        kernel_size_x_var = tk.StringVar(value="3")
-        kernel_size_x_entry = ttk.Entry(kernel_size_frame, textvariable=kernel_size_x_var, width=5)
-        kernel_size_x_entry.grid(column=2, row=0, padx=10, pady=5)
-
-        kernel_size_y_label = ttk.Label(kernel_size_frame, text="Height:")
-        kernel_size_y_label.grid(column=3, row=0, padx=5, pady=5, sticky='w')
-        kernel_size_y_var = tk.StringVar(value="3")
-        kernel_size_y_entry = ttk.Entry(kernel_size_frame, textvariable=kernel_size_y_var, width=5)
-        kernel_size_y_entry.grid(column=4, row=0, padx=10, pady=5)
-
-        config['kernel_size_x'] = kernel_size_x_var
-        config['kernel_size_y'] = kernel_size_y_var
-
-    elif layer_type == "MaxPooling2D":
-        # Pool Size
-        pool_size_frame = ttk.Frame(neuron_frame)
-        pool_size_frame.grid(column=0, row=layer_index*2+2, columnspan=6, padx=10, pady=5, sticky='w')
-
-        pool_size_label = ttk.Label(pool_size_frame, text=f"Pool Size (Layer {layer_index+1}):")
-        pool_size_label.grid(column=0, row=0, padx=10, pady=5, sticky='w')
-
-        pool_size_x_label = ttk.Label(pool_size_frame, text="Width:")
-        pool_size_x_label.grid(column=1, row=0, padx=5, pady=5, sticky='w')
-        pool_size_x_var = tk.StringVar(value="2")
-        pool_size_x_entry = ttk.Entry(pool_size_frame, textvariable=pool_size_x_var, width=5)
-        pool_size_x_entry.grid(column=2, row=0, padx=10, pady=5)
-
-        pool_size_y_label = ttk.Label(pool_size_frame, text="Height:")
-        pool_size_y_label.grid(column=3, row=0, padx=5, pady=5, sticky='w')
-        pool_size_y_var = tk.StringVar(value="2")
-        pool_size_y_entry = ttk.Entry(pool_size_frame, textvariable=pool_size_y_var, width=5)
-        pool_size_y_entry.grid(column=4, row=0, padx=10, pady=5)
-
-        config['pool_size_x'] = pool_size_x_var
-        config['pool_size_y'] = pool_size_y_var
-
-    # Find the frame corresponding to the layer_index
-    for widget in neuron_frame.winfo_children():
-        if isinstance(widget, ttk.Frame):
-            if widget.grid_info()['row'] == layer_index*3:
-                frame = widget
-                break
-    else:
-        return
-
-    # Clear existing size inputs
-    for widget in frame.winfo_children():
-        if widget.grid_info()['row'] > 0:
-            widget.destroy()
 
 
 
