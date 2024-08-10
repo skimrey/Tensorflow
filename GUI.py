@@ -119,7 +119,7 @@ def build_model():
                                             int(first_layer_config['input_shape_z'].get()))))
 
     for config in layer_configs:
-        layer_type = config['type'].get()
+        layer_type = config['layer_type'].get()
         units = int(config['units'].get())
         activation = config['activation'].get()
 
@@ -206,7 +206,7 @@ def update_neuron_entries(*args):
         layer_type_dropdown['values'] = ["Dense", "Conv2D", "MaxPooling2D", "Flatten", "SimpleRNN"]
         layer_type_dropdown.grid(column=1, row=i*10+1, padx=10, pady=5)
         layer_type_dropdown.bind("<<ComboboxSelected>>", lambda e, idx=i: update_layer_specific_entries(idx))
-        config['layer_type_var'] = layer_type_var
+        config['layer_type'] = layer_type_var
 
         # Units/Filters
         units_label = ttk.Label(neuron_frame, text=f"Units/Filters (Layer {i+1}):")
@@ -241,7 +241,7 @@ def update_neuron_entries(*args):
         layer_config.append(config)
 
     def update_layer_specific_entries(layer_index):
-        layer_type = layer_config[layer_index]['layer_type_var'].get()
+        layer_type = layer_config[layer_index]['layer_type'].get()
 
         kernel_frame = layer_config[layer_index]['kernel_size_frame']
         pool_frame = layer_config[layer_index]['pool_size_frame']
