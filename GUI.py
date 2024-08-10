@@ -144,7 +144,15 @@ def build_model():
                         steps_per_epoch=steps_per_epoch)
     
     root.model = model  # Save the trained model in the root widget
-    messagebox.showinfo("Model Built", "Model has been built and trained successfully.")
+    train_accuracy = history.history.get('accuracy', [0])[-1]  # Get the last epoch's training accuracy
+    val_accuracy = history.history.get('val_accuracy', [0])[-1]  # Get the last epoch's validation accuracy
+
+    # Show accuracy information
+    messagebox.showinfo("Model Built", 
+                        f"Model has been built and trained successfully.\n"
+                        f"Training Accuracy: {train_accuracy:.4f}\n"
+                        f"Validation Accuracy: {val_accuracy:.4f}")
+
     return model
     
     
