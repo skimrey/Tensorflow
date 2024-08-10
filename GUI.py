@@ -90,6 +90,7 @@ def build_model():
     epochs = int(epochs_var.get())
     batch_size = int(batch_size_var.get())
     steps_per_epoch = int(steps_per_epoch_var.get())
+    normalization_method = normalization_var.get()
 
     # Load dataset
     dataset, metadata = tfds.load(dataset_name, as_supervised=True, with_info=True)
@@ -98,10 +99,23 @@ def build_model():
     class_names = metadata.features['label'].names
     num_train_examples = metadata.splits['train'].num_examples
     num_test_examples = metadata.splits['test'].num_examples
-    
+
+    # Normalization function based on selected method
     def normalize(images, labels):
-        images = tf.cast(images, tf.float32)
-        images /= 255
+        if normalization_method == "Image":
+            images = tf.cast(images, tf.float32)
+            images /= 255
+        elif normalization_method == "Numeric":
+            images = tf.cast(images, tf.float32)
+            min_val = tf.reduce_min(images)
+            max_val = tf.reduce_max(images)
+            images = (images - min_val) / (max_val - min_val)
+        elif normalization_method == "Standardize":
+            images = tf.cast(images, tf.float32)
+            mean, variance = tf.nn.moments(images, axes=[0])
+            images = (images - mean) / tf.sqrt(variance)
+        else:
+            raise ValueError(f"Unsupported normalization method: {normalization_method}")
         return images, labels
 
     train_dataset = train_dataset.map(normalize)
@@ -154,7 +168,7 @@ def build_model():
                         f"Validation Accuracy: {val_accuracy:.4f}")
 
     return model
-    
+  
     
 def save_model():
     if hasattr(root, 'model'):
@@ -346,16 +360,25 @@ dataset_var = tk.StringVar()
 dataset_dropdown = ttk.Combobox(root, textvariable=dataset_var)
 dataset_dropdown.grid(column=1, row=6, padx=10, pady=10)
 
+# Normalization Method Selection
+normalization_label = ttk.Label(root, text="Normalization Method:")
+normalization_label.grid(column=0, row=7, padx=10, pady=10)
+normalization_var = tk.StringVar(value="Image")
+normalization_dropdown = ttk.Combobox(root, textvariable=normalization_var)
+normalization_dropdown['values'] = ["Image", "Numeric", "Standardize"]
+normalization_dropdown.grid(column=1, row=7, padx=10, pady=10)
+
+
 update_dropdown()
 
 # Buttons
 train_button = ttk.Button(root, text="Build & Train Model", command=build_model)
-train_button.grid(column=0, row=7, padx=10, pady=20, columnspan=2)
+train_button.grid(column=0, row=8, padx=10, pady=20, columnspan=2)
 
 save_button = ttk.Button(root, text="Save Model", command=save_model)
-save_button.grid(column=0, row=8, padx=10, pady=10, columnspan=2)
+save_button.grid(column=0, row=9, padx=10, pady=10, columnspan=2)
 
 result_label = ttk.Label(root, text="")
-result_label.grid(column=0, row=9, columnspan=2, pady=10)
+result_label.grid(column=0, row=10, columnspan=2, pady=10)
 
 root.mainloop()
